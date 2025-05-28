@@ -61,7 +61,7 @@ def setup_qa_chain(vectorstore, groq_api_key):
     return qa
 
 # Replace this with your actual Groq API key
-GROQ_API_KEY = "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"
+GROQ_API_KEY = "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"
 
 qa_chain = setup_qa_chain(vectorstore, GROQ_API_KEY)
 print("✅ QA chain ready. You can now ask questions!\n")
