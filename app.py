@@ -5,34 +5,46 @@ from langchain.vectorstores import FAISS
 from langchain_groq import ChatGroq
 from langchain.chains import RetrievalQA
 from langchain.prompts import PromptTemplate
+from langchain.schema import HumanMessage, AIMessage
 import os
 
+# Hardcoded Groq API Key
+GROQ_API_KEY = "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"
+
 # Set page config
-st.set_page_config(page_title="📄 RAG PDF Q&A", layout="centered")
+st.set_page_config(page_title="📄 RAG Chatbot", layout="centered")
 
 # Sidebar Instructions
 st.sidebar.title("📘 Instructions")
 st.sidebar.markdown("""
 1. Upload a PDF file.
-2. Enter your Groq API key.
-3. Type your question.
-4. Get an answer from the document!
+2. Ask questions in the chat below.
+3. Get answers powered by **Groq + Llama3**!
 """)
 
 # Title
-st.title("📄 RAG PDF Question Answering")
-st.markdown("Ask questions about your uploaded PDF using **Groq + Llama3**.")
+st.title("💬 RAG Chatbot")
+st.markdown("Chat with your PDF document using **Groq + Llama3**.")
 
-# Input for Groq API Key
-groq_api_key = st.text_input("🔑 Enter your Groq API Key", type="password")
-os.environ["GROQ_API_KEY"] = groq_api_key  # Optional: set env var
+# Initialize chat history
+if "messages" not in st.session_state:
+    st.session_state.messages = []
 
-# Upload PDF
-uploaded_file = st.file_uploader("📂 Upload a PDF Document", type="pdf")
+# Display chat messages from history on app rerun
+for message in st.session_state.messages:
+    if isinstance(message, HumanMessage):
+        with st.chat_message("user"):
+            st.markdown(message.content)
+    elif isinstance(message, AIMessage):
+        with st.chat_message("assistant"):
+            st.markdown(message.content)
 
 # Store vectorstore in session_state
 if "vectorstore" not in st.session_state:
     st.session_state.vectorstore = None
+
+# Upload PDF
+uploaded_file = st.file_uploader("📂 Upload a PDF Document", type="pdf", key="pdf_uploader")
 
 # Load PDF and create vector store if file is uploaded
 if uploaded_file:
@@ -60,14 +72,12 @@ if uploaded_file:
             st.success("✅ PDF processed and indexed!")
 
     else:
-        st.info("📄 PDF already loaded. Ready for questions!")
-
+        st.info("📄 PDF already loaded. Ready for chatting!")
 else:
     st.info("📂 Please upload a PDF file to begin.")
-    groq_api_key = None
 
-# QA Chain Setup
-if groq_api_key and st.session_state.vectorstore:
+# Chat input
+if st.session_state.vectorstore:
     try:
         llm = ChatGroq(
             model="llama3-8b-8192",
@@ -75,11 +85,11 @@ if groq_api_key and st.session_state.vectorstore:
             max_tokens=None,
             timeout=None,
             max_retries=2,
-            groq_api_key=groq_api_key
+            groq_api_key=GROQ_API_KEY  # Using hardcoded key
         )
 
         prompt_template = """Use the following pieces of context to answer the question at the end.
-If you don't know the answer, just say that you don't know, don't try to make up an answer.
+If you don't know the answer, just say that you don't know, don't try to make up an answer.also be specific and to the point in answer do not write extra.
 
 {context}
 
@@ -96,19 +106,20 @@ Answer:"""
             return_source_documents=True
         )
 
-        # Question input
-        query = st.text_input("❓ Ask a question about the PDF:")
-        if query:
-            with st.spinner("🧠 Getting answer from Groq..."):
-                response = qa_chain.invoke({"query": query})
-                st.markdown("### 💡 Answer:")
-                st.success(response["result"])
+        user_input = st.chat_input("Ask a question about the PDF...")
+        if user_input:
+            # Add user message to chat history
+            st.session_state.messages.append(HumanMessage(content=user_input))
+            with st.chat_message("user"):
+                st.markdown(user_input)
+
+            # Get response from QA chain
+            with st.chat_message("assistant"):
+                with st.spinner("🧠 Thinking..."):
+                    response = qa_chain.invoke({"query": user_input})
+                    answer = response["result"]
+                    st.markdown(answer)
+            st.session_state.messages.append(AIMessage(content=answer))
+
     except Exception as e:
         st.error(f"⚠️ Error: {e}")
-else:
-    if groq_api_key is None and uploaded_file:
-        st.warning("🔑 Please enter your Groq API key to proceed.")
-
-# Footer
-st.markdown("---")
-st.markdown("Made with ❤️ using [Streamlit](https://streamlit.io ), [LangChain](https://www.langchain.com ), and [Groq](https://console.groq.com ).")
